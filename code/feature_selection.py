@@ -7,32 +7,11 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
+import matplotlib.pyplot as plt
 
 
 def select_feature(df):
-
-    # # drop relatively irrelevant columns
-    # df = df.drop(['host_listings_count', 'host_total_listings_count', 'minimum_nights_avg_ntm','maximum_minimum_nights','minimum_nights','minimum_minimum_nights', 'property_type',
-    #             'calculated_host_listings_count_shared_rooms','calculated_host_listings_count_entire_homes','calculated_host_listings_count_private_rooms','maximum_nights_avg_ntm','cnt_amenities'], axis=1)
-
-    # # convert host_response_time from categorical variable to numerical one
-    # df['host_response_time'] = df['host_response_time'].replace({
-    #     'within an hour': 1,
-    #     'within a few hours': 5,
-    #     'within a day': 12,
-    #     'a few days or more': 48
-    # })
-
-    # df['host_response_time'].value_counts()
-
-    # categorical_cols = [ 'neighbourhood_cleansed',
-    #                     # 'property_type',
-    #                     'room_type','has_availability']  # add more if needed
-    # # categorical_cols = ['host_response_time', 'neighbourhood_cleansed', 'property_type', 'room_type']  # add more if needed
-    # for col in categorical_cols:
-    #     df[col] = df[col].astype('category')
-
-
    ''' column names
     'customer_id', 'vintage', 'age', 'gender', 'dependents', 'occupation',
        'city', 'customer_nw_category', 'branch_code', 'current_balance',
@@ -60,20 +39,20 @@ def select_feature(df):
 
    # Get the top 10 feature indices
    sorted_idx = np.argsort(xgb_importances)[::-1]
-   n_of_features = 10
+   n_of_features = 8
+      #14 for random forest (Random Forest Accuracy: 0.8693357597816197)
       #9 for xgb
       #10 for decision tree (Decision Tree Accuracy: 0.7997094606863991)
    top_N_features = sorted_idx[:n_of_features]
    #  print(X_train.iloc[:, top_N_features].isnull().sum())
     
    # Drop rows with NaN values in the 'city' column
-   X_train = X_train.dropna(subset=['city'])
+   X_train = X_train.dropna(subset=['city', 'occupation'])
    y_train = y_train[X_train.index]  # Update y_train accordingly
 
-   X_test = X_test.dropna(subset=['city'])
+   X_test = X_test.dropna(subset=['city', 'occupation'])
    y_test = y_test[X_test.index]  # Update y_test accordingly
 
-    
    # Create a k-fold cross-validator object (e.g., 5-fold)
    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
@@ -83,8 +62,11 @@ def select_feature(df):
    # # XGBClassifier
    #  xgb_classifier(X, y, kf, n_of_features)
 
-   # decision tree
-   decision_tree(X_train, y_train, X_test, y_test, top_N_features)
+   # # decision tree
+   # decision_tree(X_train, y_train, X_test, y_test, top_N_features)
+
+   # # random forest
+   # random_forest(X_train, y_train, X_test, y_test, top_N_features)
 
    return 
 
@@ -132,7 +114,7 @@ def decision_tree(X_train, y_train, X_test, y_test, top_N_features):
 
 
    # Select categorical columns
-   categorical_cols = [ 'occupation']
+   categorical_cols = ['occupation']
 
    # Select the remaining non-categorical columns
    non_categorical_cols = [col for col in selected_features if col not in categorical_cols]
@@ -154,10 +136,8 @@ def decision_tree(X_train, y_train, X_test, y_test, top_N_features):
       ('classifier', DecisionTreeClassifier(random_state=42))
    ])
 
-
    # Train the Decision Tree model
    dt_model.fit(X_train[selected_features], y_train)
-
 
    # Make predictions on the test set
    y_pred_dt = dt_model.predict(X_test[selected_features])
@@ -170,3 +150,50 @@ def decision_tree(X_train, y_train, X_test, y_test, top_N_features):
    print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred_dt))
 
    return
+
+
+def random_forest(X_train, y_train, X_test, y_test, top_N_features):
+   # Select the top features
+   selected_features = X_train.columns[top_N_features]
+
+   # random_forest_model = RandomForestClassifier(n_estimators=100, random_state=42)
+   # random_forest_model.fit(X_train[selected_features], y_train)
+   # y_pred = random_forest_model.predict(X_test[selected_features])
+   # accuracy = accuracy_score(y_test, y_pred)
+   # print(f"Accuracy: {accuracy}")
+
+   # Select categorical columns
+   categorical_cols = ['occupation']
+
+   # Select the remaining non-categorical columns
+   non_categorical_cols = [col for col in selected_features if col not in categorical_cols]
+
+   # Create transformers for categorical and non-categorical columns
+   categorical_transformer = Pipeline(steps=[
+      ('onehot', OneHotEncoder(handle_unknown='ignore'))
+   ])
+
+   preprocessor = ColumnTransformer(
+      transformers=[
+         ('cat', categorical_transformer, categorical_cols),
+         ('num', 'passthrough', non_categorical_cols)
+      ])
+
+   # Initialize the Random Forest model within a pipeline
+   rf_model = Pipeline(steps=[
+      ('preprocessor', preprocessor),
+      ('classifier', RandomForestClassifier(n_estimators=300, random_state=42))
+   ])
+
+   # Train the Random Forest model on the entire training set
+   rf_model.fit(X_train[selected_features], y_train)
+
+   # Make predictions on the test set
+   y_pred_rf = rf_model.predict(X_test[selected_features])
+
+   # Evaluate performance
+   accuracy_rf = accuracy_score(y_test, y_pred_rf)
+
+   print(f"Random Forest Accuracy: {accuracy_rf}")
+   print("\nClassification Report:\n", classification_report(y_test, y_pred_rf))
+   print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred_rf))
