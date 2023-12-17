@@ -39,7 +39,7 @@ def select_feature(df):
 
    # Get the top 10 feature indices
    sorted_idx = np.argsort(xgb_importances)[::-1]
-   n_of_features = 8
+   n_of_features = 9
       #14 for random forest (Random Forest Accuracy: 0.8693357597816197)
       #9 for xgb
       #10 for decision tree (Decision Tree Accuracy: 0.7997094606863991)
@@ -60,7 +60,7 @@ def select_feature(df):
    X = X.iloc[:, top_N_features]
 
    # # XGBClassifier
-   #  xgb_classifier(X, y, kf, n_of_features)
+   xgb_classifier(X, y, kf, n_of_features)
 
    # # decision tree
    # decision_tree(X_train, y_train, X_test, y_test, top_N_features)
@@ -71,20 +71,30 @@ def select_feature(df):
    return 
 
 
+from sklearn.metrics import classification_report
+from sklearn.model_selection import cross_val_predict
+
 def xgb_classifier(X, y, kf, n_of_features):
+    # Initialize the model
+    model_xgb = xgb.XGBClassifier(tree_method="hist", enable_categorical=True)
 
-   # Initialize the model
-   model_xgb = xgb.XGBClassifier(tree_method="hist", enable_categorical=True)
+    # Compute cross-validated predictions
+    y_pred = cross_val_predict(model_xgb, X, y, cv=kf)
 
-   # Compute cross-validated accuracy scores
-   cv_scores = cross_val_score(model_xgb, X, y, cv=kf, scoring='accuracy')
+    # Compute cross-validated accuracy scores
+    cv_scores = cross_val_score(model_xgb, X, y, cv=kf, scoring='accuracy')
 
-   # Print results
-   print('XGBoost hist tree')
-   print(f"Number of features: {n_of_features}")
-   print(f"Accuracy scores for the 5 folds: {cv_scores}")
-   print(f"Mean accuracy: {np.mean(cv_scores):.4f}")
-   print(f"Standard deviation: {np.std(cv_scores):.4f}")
+    # Print results
+   #  print('XGBoost hist tree')
+   #  print(f"Number of features: {n_of_features}")
+   #  print(f"Accuracy scores for the 5 folds: {cv_scores}")
+    print(f"XGBoost Hist Tree Mean Accuracy: {np.mean(cv_scores):.4f}")
+   #  print(f"Standard deviation: {np.std(cv_scores):.4f}")
+
+    # Print classification report
+    print("Classification Report:")
+    print(classification_report(y, y_pred))
+
 
    # XGBoost hist tree
    # Number of features: 9
@@ -92,7 +102,6 @@ def xgb_classifier(X, y, kf, n_of_features):
    # Mean accuracy: 0.8555
    # Standard deviation: 0.0049
     
-   return
     
 
 def decision_tree(X_train, y_train, X_test, y_test, top_N_features):
