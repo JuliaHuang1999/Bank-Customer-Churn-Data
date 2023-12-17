@@ -1,13 +1,13 @@
 import pandas as pd
-import xgboost as xgb
-from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, confusion_matrix
-from sklearn.model_selection import StratifiedKFold, cross_val_score
-
 import numpy as np
-import os
-import sys
+import xgboost as xgb
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+
 
 def select_feature(df):
 
@@ -33,7 +33,7 @@ def select_feature(df):
     #     df[col] = df[col].astype('category')
 
 
-    ''' column names
+   ''' column names
     'customer_id', 'vintage', 'age', 'gender', 'dependents', 'occupation',
        'city', 'customer_nw_category', 'branch_code', 'current_balance',
        'previous_month_end_balance', 'average_monthly_balance_prevQ',
@@ -41,47 +41,132 @@ def select_feature(df):
        'previous_month_credit', 'current_month_debit', 'previous_month_debit',
        'current_month_balance', 'previous_month_balance', 'churn',
        'last_transaction', 'last_transaction_days_ago'
-    '''
+   '''
 
-    X = df.drop(columns=['customer_id', 'churn', 'last_transaction'])
-    y = df['churn']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+   X = df.drop(columns=['customer_id', 'churn', 'last_transaction'])
+   y = df['churn']
+   X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Use XGBoost Classifier to Select Top N Features
-    model = xgb.XGBClassifier(tree_method="hist", enable_categorical=True)
-    model.fit(X_train, y_train)
+   # Use XGBoost Classifier to Select Top N Features
+   model = xgb.XGBClassifier(tree_method="hist", enable_categorical=True)
+   model.fit(X_train, y_train)
 
-    # Get feature importances
-    xgb_importances = model.feature_importances_
+   # Get feature importances
+   xgb_importances = model.feature_importances_
 
    #  # Plot
    #  xgb.plot_importance(model, max_num_features=8, importance_type='gain')
    #  plt.show()
 
-    # Get the top 10 feature indices
-    sorted_idx = np.argsort(xgb_importances)[::-1]
-    top_8_features = sorted_idx[:10]
-   #  print(X_train.columns[top_8_features])
+   # Get the top 10 feature indices
+   sorted_idx = np.argsort(xgb_importances)[::-1]
+   n_of_features = 10
+      #9 for xgb
+      #10 for decision tree (Decision Tree Accuracy: 0.7997094606863991)
+   top_N_features = sorted_idx[:n_of_features]
+   #  print(X_train.iloc[:, top_N_features].isnull().sum())
+    
+   # Drop rows with NaN values in the 'city' column
+   X_train = X_train.dropna(subset=['city'])
+   y_train = y_train[X_train.index]  # Update y_train accordingly
+
+   X_test = X_test.dropna(subset=['city'])
+   y_test = y_test[X_test.index]  # Update y_test accordingly
+
     
    # Create a k-fold cross-validator object (e.g., 5-fold)
-    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+   kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
    # Keep only top20 features in the original dataset
-    X = X.iloc[:, top_8_features]
+   X = X.iloc[:, top_N_features]
+
+   # # XGBClassifier
+   #  xgb_classifier(X, y, kf, n_of_features)
+
+   # decision tree
+   decision_tree(X_train, y_train, X_test, y_test, top_N_features)
+
+   return 
+
+
+def xgb_classifier(X, y, kf, n_of_features):
 
    # Initialize the model
-    model_xgb = xgb.XGBClassifier(tree_method="hist", enable_categorical=True)
+   model_xgb = xgb.XGBClassifier(tree_method="hist", enable_categorical=True)
 
    # Compute cross-validated accuracy scores
-    cv_scores = cross_val_score(model_xgb, X, y, cv=kf, scoring='accuracy')
+   cv_scores = cross_val_score(model_xgb, X, y, cv=kf, scoring='accuracy')
 
    # Print results
-    print('XGBoost hist tree')
-    print(f"Accuracy scores for the 5 folds: {cv_scores}")
-    print(f"Mean accuracy: {np.mean(cv_scores):.4f}")
-    print(f"Standard deviation: {np.std(cv_scores):.4f}")
+   print('XGBoost hist tree')
+   print(f"Number of features: {n_of_features}")
+   print(f"Accuracy scores for the 5 folds: {cv_scores}")
+   print(f"Mean accuracy: {np.mean(cv_scores):.4f}")
+   print(f"Standard deviation: {np.std(cv_scores):.4f}")
 
    # XGBoost hist tree
-   # Accuracy scores for the 5 folds: [0.85819975 0.84956843 0.85482734 0.85923185 0.85112755]
-   # Mean accuracy: 0.8546
-   # Standard deviation: 0.0038
+   # Number of features: 9
+   # Accuracy scores for the 5 folds: [0.85784745 0.85238682 0.8534179  0.86381254 0.85007047]
+   # Mean accuracy: 0.8555
+   # Standard deviation: 0.0049
+    
+   return
+    
+
+def decision_tree(X_train, y_train, X_test, y_test, top_N_features):
+   # Select the top features
+   selected_features = X_train.columns[top_N_features]
+
+   # # Create a decision tree classifier
+   # clf = DecisionTreeClassifier()
+
+   # # Train the classifier
+   # clf.fit(X_train[selected_features], y_train)
+
+   # # Make predictions on the test set
+   # y_pred = clf.predict(X_test[selected_features])
+
+   # # Evaluate the model
+   # accuracy = accuracy_score(y_test, y_pred)
+   # print(f"Accuracy: {accuracy}")
+
+
+   # Select categorical columns
+   categorical_cols = [ 'occupation']
+
+   # Select the remaining non-categorical columns
+   non_categorical_cols = [col for col in selected_features if col not in categorical_cols]
+
+   # Create transformers for categorical and non-categorical columns
+   categorical_transformer = Pipeline(steps=[
+      ('onehot', OneHotEncoder(handle_unknown='ignore'))
+   ])
+
+   preprocessor = ColumnTransformer(
+      transformers=[
+         ('cat', categorical_transformer, categorical_cols),
+         ('num', 'passthrough', non_categorical_cols)
+      ])
+
+   # Initialize the Decision Tree model within a pipeline
+   dt_model = Pipeline(steps=[
+      ('preprocessor', preprocessor),
+      ('classifier', DecisionTreeClassifier(random_state=42))
+   ])
+
+
+   # Train the Decision Tree model
+   dt_model.fit(X_train[selected_features], y_train)
+
+
+   # Make predictions on the test set
+   y_pred_dt = dt_model.predict(X_test[selected_features])
+
+   # Evaluate performance
+   accuracy_dt = accuracy_score(y_test, y_pred_dt)
+
+   print(f"Decision Tree Accuracy: {accuracy_dt}")
+   print("\nClassification Report:\n", classification_report(y_test, y_pred_dt))
+   print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred_dt))
+
+   return
