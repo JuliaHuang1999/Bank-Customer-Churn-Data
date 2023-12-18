@@ -26,7 +26,8 @@ def clean_data(data):
 
     # Calculate the difference in days and transform the data, leaving NaT as NaN
     data['last_transaction_days_ago'] = (latest_date - data['last_transaction']).dt.days
-    data['last_transaction_days_ago'] = data['last_transaction_days_ago'].astype('Int64')
+    data = data[data['last_transaction_days_ago'].notna()]
+    data['last_transaction_days_ago'] = data['last_transaction_days_ago'].astype('int')
 
 
     data['credit_difference'] = data['current_month_credit'] - data['previous_month_credit']

@@ -1,14 +1,25 @@
-# importing libraries
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
 import warnings
 warnings.filterwarnings(action = 'ignore')
 
 from code.data_cleaning import clean_data
 from code.feature_selection import select_feature
+from code.model.xgb_classifier import xgb_classifier
+from code.model.decision_tree import decision_tree
+from code.model.random_forest import random_forest
 
-#importing data
+# Import data
 data = pd.read_csv('data/archive/churn_prediction.csv')
+
+# Clean data
 cleaned_df = clean_data(data)
-select_feature(cleaned_df)
-# print(cleaned_df.head())
+X, y, kf, n_of_features, X_train, y_train, X_test, y_test, top_N_features = select_feature(cleaned_df)
+
+# XGB Classifier
+xgb_classifier(X, y, kf, n_of_features)
+
+# Decision tree
+decision_tree(X_train, y_train, X_test, y_test, top_N_features)
+
+# Random forest
+random_forest(X_train, y_train, X_test, y_test, top_N_features)
