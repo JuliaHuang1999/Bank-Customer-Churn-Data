@@ -22,7 +22,7 @@ def select_feature(df):
        'last_transaction', 'last_transaction_days_ago'
    '''
 
-   X = df.drop(columns=['customer_id', 'churn', 'last_transaction'])
+   X = df.drop(columns=['churn'])
    y = df['churn']
    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -33,24 +33,28 @@ def select_feature(df):
    # Get feature importances
    xgb_importances = model.feature_importances_
 
-   #  # Plot
-   #  xgb.plot_importance(model, max_num_features=8, importance_type='gain')
-   #  plt.show()
+   # # Plot
+   # plt.figure(figsize=(21, 8))
+   # xgb.plot_importance(model, max_num_features=14, importance_type='gain')
+
+   # # Save the word cloud as an image file
+   # filename = f'./plots/XGB_feature_importance.png'
+   # plt.savefig(filename, bbox_inches='tight', dpi=1200)
+   # plt.show()
 
    # Get the top 10 feature indices
    sorted_idx = np.argsort(xgb_importances)[::-1]
-   n_of_features = 9
-      #14 for random forest (Random Forest Accuracy: 0.8693357597816197)
-      #9 for xgb
-      #10 for decision tree (Decision Tree Accuracy: 0.7997094606863991)
+   n_of_features = 5
+      #14 for random forest (Random Forest Accuracy: 0.8693357597816197) #add diff not higher
+      #11 for xgb (XGBoost Hist Tree Mean Accuracy: 0.8573)
+      #10 for decision tree (Decision Tree Accuracy: 0.7997094606863991) #add diff not higher
    top_N_features = sorted_idx[:n_of_features]
-   #  print(X_train.iloc[:, top_N_features].isnull().sum())
     
    # Drop rows with NaN values in the 'city' column
-   X_train = X_train.dropna(subset=['city', 'occupation'])
+   X_train = X_train.dropna(subset=['city', 'occupation', 'last_transaction_days_ago'])
    y_train = y_train[X_train.index]  # Update y_train accordingly
 
-   X_test = X_test.dropna(subset=['city', 'occupation'])
+   X_test = X_test.dropna(subset=['city', 'occupation', 'last_transaction_days_ago'])
    y_test = y_test[X_test.index]  # Update y_test accordingly
 
    # Create a k-fold cross-validator object (e.g., 5-fold)
@@ -58,9 +62,10 @@ def select_feature(df):
 
    # Keep only top20 features in the original dataset
    X = X.iloc[:, top_N_features]
+   # print(X_train.iloc[:, top_N_features].isnull().sum())
 
    # # XGBClassifier
-   xgb_classifier(X, y, kf, n_of_features)
+   # xgb_classifier(X, y, kf, n_of_features)
 
    # # decision tree
    # decision_tree(X_train, y_train, X_test, y_test, top_N_features)
@@ -108,55 +113,56 @@ def decision_tree(X_train, y_train, X_test, y_test, top_N_features):
    # Select the top features
    selected_features = X_train.columns[top_N_features]
 
-   # # Create a decision tree classifier
-   # clf = DecisionTreeClassifier()
+   # Create a decision tree classifier
+   clf = DecisionTreeClassifier()
 
-   # # Train the classifier
-   # clf.fit(X_train[selected_features], y_train)
-
-   # # Make predictions on the test set
-   # y_pred = clf.predict(X_test[selected_features])
-
-   # # Evaluate the model
-   # accuracy = accuracy_score(y_test, y_pred)
-   # print(f"Accuracy: {accuracy}")
-
-
-   # Select categorical columns
-   categorical_cols = ['occupation']
-
-   # Select the remaining non-categorical columns
-   non_categorical_cols = [col for col in selected_features if col not in categorical_cols]
-
-   # Create transformers for categorical and non-categorical columns
-   categorical_transformer = Pipeline(steps=[
-      ('onehot', OneHotEncoder(handle_unknown='ignore'))
-   ])
-
-   preprocessor = ColumnTransformer(
-      transformers=[
-         ('cat', categorical_transformer, categorical_cols),
-         ('num', 'passthrough', non_categorical_cols)
-      ])
-
-   # Initialize the Decision Tree model within a pipeline
-   dt_model = Pipeline(steps=[
-      ('preprocessor', preprocessor),
-      ('classifier', DecisionTreeClassifier(random_state=42))
-   ])
-
-   # Train the Decision Tree model
-   dt_model.fit(X_train[selected_features], y_train)
+   # Train the classifier
+   clf.fit(X_train[selected_features], y_train)
 
    # Make predictions on the test set
-   y_pred_dt = dt_model.predict(X_test[selected_features])
+   y_pred = clf.predict(X_test[selected_features])
 
-   # Evaluate performance
-   accuracy_dt = accuracy_score(y_test, y_pred_dt)
+   # Evaluate the model
+   accuracy = accuracy_score(y_test, y_pred)
+   print(f"Accuracy: {accuracy}")
+   print("\nClassification Report:\n", classification_report(y_test, y_pred))
 
-   print(f"Decision Tree Accuracy: {accuracy_dt}")
-   print("\nClassification Report:\n", classification_report(y_test, y_pred_dt))
-   print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred_dt))
+
+   # # Select categorical columns
+   # categorical_cols = ['occupation']
+
+   # # Select the remaining non-categorical columns
+   # non_categorical_cols = [col for col in selected_features if col not in categorical_cols]
+
+   # # Create transformers for categorical and non-categorical columns
+   # categorical_transformer = Pipeline(steps=[
+   #    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+   # ])
+
+   # preprocessor = ColumnTransformer(
+   #    transformers=[
+   #       ('cat', categorical_transformer, categorical_cols),
+   #       ('num', 'passthrough', non_categorical_cols)
+   #    ])
+
+   # # Initialize the Decision Tree model within a pipeline
+   # dt_model = Pipeline(steps=[
+   #    ('preprocessor', preprocessor),
+   #    ('classifier', DecisionTreeClassifier(random_state=42))
+   # ])
+
+   # # Train the Decision Tree model
+   # dt_model.fit(X_train[selected_features], y_train)
+
+   # # Make predictions on the test set
+   # y_pred_dt = dt_model.predict(X_test[selected_features])
+
+   # # Evaluate performance
+   # accuracy_dt = accuracy_score(y_test, y_pred_dt)
+
+   # print(f"Decision Tree Accuracy: {accuracy_dt}")
+   # print("\nClassification Report:\n", classification_report(y_test, y_pred_dt))
+   # print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred_dt))
 
    return
 
@@ -165,44 +171,45 @@ def random_forest(X_train, y_train, X_test, y_test, top_N_features):
    # Select the top features
    selected_features = X_train.columns[top_N_features]
 
-   # random_forest_model = RandomForestClassifier(n_estimators=100, random_state=42)
-   # random_forest_model.fit(X_train[selected_features], y_train)
-   # y_pred = random_forest_model.predict(X_test[selected_features])
-   # accuracy = accuracy_score(y_test, y_pred)
-   # print(f"Accuracy: {accuracy}")
+   random_forest_model = RandomForestClassifier(n_estimators=300, random_state=42)
+   random_forest_model.fit(X_train[selected_features], y_train)
+   y_pred = random_forest_model.predict(X_test[selected_features])
+   accuracy = accuracy_score(y_test, y_pred)
+   print(f"Accuracy: {accuracy}")
+   print("\nClassification Report:\n", classification_report(y_test, y_pred))
 
-   # Select categorical columns
-   categorical_cols = ['occupation']
+   # # Select categorical columns
+   # categorical_cols = ['occupation']
 
-   # Select the remaining non-categorical columns
-   non_categorical_cols = [col for col in selected_features if col not in categorical_cols]
+   # # Select the remaining non-categorical columns
+   # non_categorical_cols = [col for col in selected_features if col not in categorical_cols]
 
-   # Create transformers for categorical and non-categorical columns
-   categorical_transformer = Pipeline(steps=[
-      ('onehot', OneHotEncoder(handle_unknown='ignore'))
-   ])
+   # # Create transformers for categorical and non-categorical columns
+   # categorical_transformer = Pipeline(steps=[
+   #    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+   # ])
 
-   preprocessor = ColumnTransformer(
-      transformers=[
-         ('cat', categorical_transformer, categorical_cols),
-         ('num', 'passthrough', non_categorical_cols)
-      ])
+   # preprocessor = ColumnTransformer(
+   #    transformers=[
+   #       ('cat', categorical_transformer, categorical_cols),
+   #       ('num', 'passthrough', non_categorical_cols)
+   #    ])
 
-   # Initialize the Random Forest model within a pipeline
-   rf_model = Pipeline(steps=[
-      ('preprocessor', preprocessor),
-      ('classifier', RandomForestClassifier(n_estimators=300, random_state=42))
-   ])
+   # # Initialize the Random Forest model within a pipeline
+   # rf_model = Pipeline(steps=[
+   #    ('preprocessor', preprocessor),
+   #    ('classifier', RandomForestClassifier(n_estimators=300, random_state=42))
+   # ])
 
-   # Train the Random Forest model on the entire training set
-   rf_model.fit(X_train[selected_features], y_train)
+   # # Train the Random Forest model on the entire training set
+   # rf_model.fit(X_train[selected_features], y_train)
 
-   # Make predictions on the test set
-   y_pred_rf = rf_model.predict(X_test[selected_features])
+   # # Make predictions on the test set
+   # y_pred_rf = rf_model.predict(X_test[selected_features])
 
-   # Evaluate performance
-   accuracy_rf = accuracy_score(y_test, y_pred_rf)
+   # # Evaluate performance
+   # accuracy_rf = accuracy_score(y_test, y_pred_rf)
 
-   print(f"Random Forest Accuracy: {accuracy_rf}")
-   print("\nClassification Report:\n", classification_report(y_test, y_pred_rf))
-   print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred_rf))
+   # print(f"Random Forest Accuracy: {accuracy_rf}")
+   # print("\nClassification Report:\n", classification_report(y_test, y_pred_rf))
+   # print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred_rf))
